@@ -1,8 +1,8 @@
 # 🗄️ SQL Revision — Employee DB
+📎 **Table Schema Reference →** ![Schema](./day1.png)
 
 ## Quick-Reference Cheat Sheet
-<details>
-<summary>Quick-Reference Cheat Sheet</summary>
+
 | Keyword / Function | Does What |
 |---|---|
 | `COALESCE(a, b)` | First non-NULL value |
@@ -12,8 +12,6 @@
 | `CASE … WHEN … END` | Conditional labelling |
 | Subquery in `FROM` | Derived / temporary table |
 | Subquery in `WHERE` | Scalar comparison value |
-
-</details>
 
 ---
 
