@@ -1,0 +1,299 @@
+# Day 6 Learning Summary: Apache Spark & PySpark
+
+---
+
+## 🚀 Spark Session & DataFrame Basics
+
+---
+
+### How do you create a Spark session and read CSV files?
+
+<details>
+<summary>Answer</summary>
+
+```python
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.appName("Demo App").master("local").getOrCreate()
+
+df = spark.read.csv(
+    path="employee.csv",
+    sep="|",
+    inferSchema=True,
+    header=True,
+    quote="'"
+)
+```
+
+> `SparkSession.builder` creates session; `master("local")` uses single machine. `read.csv()` with `sep`, `inferSchema`, `header`, and `quote` parameters handles custom CSV parsing.
+
+</details>
+
+---
+
+### How do you display and inspect DataFrame rows and schema?
+
+<details>
+<summary>Answer A — Display rows with formatting</summary>
+
+```python
+df.show(n=5, truncate=False)
+```
+
+> `n` limits output rows; `truncate=False` shows full cell content.
+
+</details>
+
+<details>
+<summary>Answer B — Display schema</summary>
+
+```python
+df.printSchema()
+```
+
+> Prints column names and inferred data types.
+
+</details>
+
+---
+
+## 🔍 Selecting & Filtering
+
+---
+
+### How do you select and rename specific columns from a DataFrame?
+
+<details>
+<summary>Answer A — Select with string names</summary>
+
+```python
+df.select("id", "name").show()
+```
+
+</details>
+
+<details>
+<summary>Answer B — Using col() for transformations</summary>
+
+```python
+from pyspark.sql.functions import col
+
+df.select(col("id"), col("name").alias("Full-Name")).show()
+```
+
+> `col()` returns column object with methods like `.alias()`, `.cast()`, etc.; more powerful than string names.
+
+</details>
+
+---
+
+### How do you filter rows using equality, comparisons, and text matching?
+
+<details>
+<summary>Answer A — Filter by single column value</summary>
+
+```python
+from pyspark.sql.functions import col, lower
+
+df.filter(col("gen") == "F").select(col("name").alias("Female Names")).show()
+```
+
+</details>
+
+<details>
+<summary>Answer B — Case-insensitive text matching</summary>
+
+```python
+from pyspark.sql.functions import col, lower
+
+df.filter(lower(col("company")) == "cisco").select(col("name").alias("Cisco Employees")).show()
+```
+
+> Use `lower()` to normalize text before comparison; handles inconsistent casing in data.
+
+</details>
+
+<details>
+<summary>Answer C — Multiple conditions (AND)</summary>
+
+```python
+from pyspark.sql.functions import col, lower
+
+df.filter((lower(col("company")) == "cisco") & (col("exp") >= 5)).select(col("name")).show()
+```
+
+> Use `&` for AND, `|` for OR. Wrap each condition in parentheses.
+
+</details>
+
+---
+
+## 🏗️ Adding & Transforming Columns
+
+---
+
+### How do you add a new column with a constant value?
+
+<details>
+<summary>Answer</summary>
+
+```python
+from pyspark.sql.functions import col, lit
+
+df.withColumn("is_employeed", lit("True")).show()
+```
+
+> `lit()` creates a literal constant; `withColumn()` adds/updates column. All rows get same value.
+
+</details>
+
+---
+
+### How do you add a conditional column (if-then-else)?
+
+<details>
+<summary>Answer A — Simple when/otherwise</summary>
+
+```python
+from pyspark.sql.functions import col, when
+
+df.withColumn(
+    "exp_level",
+    when(col("exp") >= 10, "Senior")
+        .when(col("exp") >= 5, "Mid Level")
+        .when(col("exp") >= 0, "Junior")
+        .otherwise("Invalid Experience")
+).select("name", "exp", "exp_level").show()
+```
+
+> Chain `.when()` for multiple conditions; `.otherwise()` is fallback. Returns new column.
+
+</details>
+
+<details>
+<summary>Answer B — Multi-column conditions</summary>
+
+```python
+from pyspark.sql.functions import col, when
+
+df.withColumn(
+    "exp_level_gen",
+    when((col("exp") >= 10) & (col("gen") == "M"), "Senior(M)")
+        .when((col("exp") >= 8) & (col("gen") == "F"), "Senior(F)")
+        .when((col("exp") >= 5) & (col("gen") == "M"), "Mid Level(M)")
+        .when((col("exp") >= 4) & (col("gen") == "F"), "Mid Level(F)")
+        .when((col("exp") >= 0) & (col("gen") == "M"), "Junior(M)")
+        .when((col("exp") >= 0) & (col("gen") == "F"), "Junior(F)")
+        .otherwise("Invalid Experience")
+).select("name", "exp", "exp_level_gen").show()
+```
+
+> Combine multiple columns with `&` in condition; order matters (first match wins).
+
+</details>
+
+---
+
+### How do you extract parts of a string column and convert data types?
+
+<details>
+<summary>Answer</summary>
+
+```python
+from pyspark.sql.functions import col, split
+
+df.withColumn(
+    "current_salary",
+    split(col("col_current_expected_salary"), ",")[0].cast("double")
+).show()
+```
+
+> `split()` on delimiter returns array; index with `[0]` to get first element; `.cast()` converts type.
+
+</details>
+
+---
+
+### How do you chain column operations and calculate derived values row-by-row?
+
+<details>
+<summary>Answer</summary>
+
+```python
+from pyspark.sql.functions import col, when, split
+
+df.withColumn(
+    "current_salary",
+    split(col("col_current_expected_salary"), ",")[0].cast("double")
+).withColumn(
+    "bonus",
+    when(col("gen") == "M", col("current_salary") * 0.10)
+        .when(col("gen") == "F", col("current_salary") * 0.20)
+        .otherwise(0)
+).show()
+```
+
+> Chain `.withColumn()` calls; later columns can reference earlier ones. Formulas apply element-wise to all rows.
+
+</details>
+
+---
+
+## 📊 Aggregation
+
+---
+
+### How do you group rows by a column and perform aggregations?
+
+<details>
+<summary>Answer</summary>
+
+```python
+from pyspark.sql.functions import col
+
+df.groupby(col("gen")).count().show()
+```
+
+> `groupby()` groups rows by column value; `.count()` counts rows in each group.
+
+</details>
+
+---
+
+## ⚠️ Common Traps & Gotchas
+
+---
+
+### Data Quality Issues in This Dataset
+
+<details>
+<summary>Common problems to watch for</summary>
+
+```plaintext
+⚠️ Missing values in id column (row 4, 9, 11, 12)
+⚠️ Missing values in name column (rows 9, 11, 12)
+⚠️ Missing values in exp column (rows 5, 10)
+⚠️ Mixed case in company (Cisco vs cisco)
+⚠️ Inconsistent gender codes (T instead of M/F in row 10)
+⚠️ Empty rows present (row 12)
+⚠️ Quoted strings in CSV (names wrapped in single quotes)
+⚠️ Composite salary column (current, expected separated by comma)
+```
+
+> Use `filter()` to exclude nulls, `lower()` for case normalization, and `split()` for composite fields.
+
+</details>
+
+---
+
+## 🎯 Key Takeaways
+
+- **SparkSession**: Entry point for all Spark operations; `master("local")` for dev/testing.
+- **CSV parsing**: Use `sep`, `inferSchema`, `header`, `quote` for custom delimited files.
+- **col() vs string**: Use `col()` for transformations, aliases, type casting; strings work for simple select.
+- **Filtering**: Use `&` for AND, `|` for OR; wrap conditions in parentheses.
+- **Conditionals**: Chain `.when().when().otherwise()` for complex logic; order matters (first match wins).
+- **String operations**: `lower()` normalizes case; `split()` breaks strings into arrays; index with `[0]`.
+- **Type conversion**: `.cast("double")` or `.cast("int")` converts column types.
+- **Chaining**: `.withColumn()` can chain multiple times; later columns reference earlier ones.
+- **Data quality**: Always inspect data for nulls, case inconsistencies, and composite fields.
